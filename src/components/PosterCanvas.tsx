@@ -70,6 +70,12 @@ export interface PosterCanvasSettings {
   leaderNameMaxWidth?: number;
   leaderRoleMaxWidth?: number;
   leaderCompanyMaxWidth?: number;
+  // Company / Custom Brand Logo (Movable, resizable, toggleable)
+  showCompanyLogo?: boolean;
+  companyLogoUrl?: string;
+  companyLogoSize?: number;
+  companyLogoOffsetX?: number;
+  companyLogoOffsetY?: number;
   // Person Cutout positioning & adjustments
   personScale: number;
   personOffsetX: number;
@@ -132,6 +138,9 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
   const [leftLogoLoaded, setLeftLogoLoaded] = useState(false);
   const rightLogoImgRef = useRef<HTMLImageElement | null>(null);
   const [rightLogoLoaded, setRightLogoLoaded] = useState(false);
+  // Company / Custom Brand Logo
+  const companyLogoImgRef = useRef<HTMLImageElement | null>(null);
+  const [companyLogoLoaded, setCompanyLogoLoaded] = useState(false);
 
   const [isDrawingEraser, setIsDrawingEraser] = useState(false);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -211,6 +220,27 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
     };
     img.src = rightUrl;
   }, [rightUrl]);
+
+  // Load Company / Custom Brand Logo
+  const compUrl = settings.companyLogoUrl;
+  useEffect(() => {
+    if (!compUrl) {
+      companyLogoImgRef.current = null;
+      setCompanyLogoLoaded(false);
+      return;
+    }
+    setCompanyLogoLoaded(false);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      companyLogoImgRef.current = img;
+      setCompanyLogoLoaded(true);
+    };
+    img.onerror = () => {
+      setCompanyLogoLoaded(false);
+    };
+    img.src = compUrl;
+  }, [compUrl]);
 
   const isTemplateBg = settings.layoutMode === "template-bg" || settings.bgType === "template-bg";
   const canvasW = isTemplateBg ? 1260 : 1400;
@@ -867,6 +897,8 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
 
       // 3. Company Name below title
       const companyText = settings.leaderCompany !== undefined ? settings.leaderCompany : "accelya";
+      let lastCompanyBottomY = roleY + 28;
+
       if (companyText) {
         const companySize = settings.leaderCompanySize ?? Math.round(settings.titleFontSize * 1.15);
         const companyX = settings.leaderCompanyOffsetX ?? settings.leaderTextOffsetX ?? 95;
@@ -893,7 +925,33 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
         }
         if (compLine.trim()) {
           ctx.fillText(compLine.trim(), companyX, currCompY);
+          currCompY += compLineH;
         }
+        lastCompanyBottomY = currCompY;
+      }
+
+      // 4. Left Logo (Renders below company name in Leadership Template)
+      const showLeftInCard = settings.showLeftLogo !== false;
+      const cardLogoImg = (settings.companyLogoUrl && companyLogoImgRef.current && companyLogoLoaded)
+        ? companyLogoImgRef.current
+        : (leftLogoImgRef.current && leftLogoLoaded ? leftLogoImgRef.current : null);
+
+      if (showLeftInCard && cardLogoImg) {
+        const lAspect = (cardLogoImg.naturalWidth || cardLogoImg.width) / (cardLogoImg.naturalHeight || cardLogoImg.height || 1);
+        const targetW = settings.leftLogoSize || settings.companyLogoSize || settings.logoSize || 135;
+        const targetH = targetW / lAspect;
+
+        const baseCompX = settings.leaderCompanyOffsetX ?? settings.leaderTextOffsetX ?? 95;
+        const logoX = baseCompX + (settings.leftLogoOffsetX || settings.companyLogoOffsetX || 0);
+
+        // Position directly below the company name
+        const logoY = lastCompanyBottomY + 16 + (settings.leftLogoOffsetY || settings.companyLogoOffsetY || 0);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+        ctx.drawImage(cardLogoImg, logoX, logoY, targetW, targetH);
+        ctx.shadowColor = "transparent";
       }
 
       ctx.restore();
@@ -983,7 +1041,7 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
       ctx.restore();
     }
 
-    // 7. DRAW TOP LOGOS (LEFT & RIGHT) - Available across templates including Modern Wave & Rings & Dual-Logo
+    // 7. DRAW TOP LOGOS (LEFT & RIGHT) - Available across templates (In Leadership template-bg, Left Logo renders below company name)
     if (settings.layoutMode !== "circle-banner" && settings.bgType !== "reference" && !isTemplateBg) {
       const showLeft = settings.showLeftLogo !== false;
       const showRight = settings.showRightLogo !== false && !!settings.rightLogoUrl;
@@ -1039,7 +1097,29 @@ export const PosterCanvas: React.FC<PosterCanvasProps> = ({
 
       ctx.restore();
     }
-  }, [settings, imageLoaded, refImageLoaded, templateBgLoaded, leftLogoLoaded, rightLogoLoaded, canvasW, canvasH]);
+
+    // 8. DRAW COMPANY LOGO IN NON-TEMPLATE-BG LAYOUTS IF SET
+    if (!isTemplateBg) {
+      const showCompLogo = settings.showCompanyLogo !== false && !!settings.companyLogoUrl;
+      if (showCompLogo && companyLogoImgRef.current && companyLogoLoaded) {
+        ctx.save();
+        const cImg = companyLogoImgRef.current;
+        const cAspect = (cImg.naturalWidth || cImg.width) / (cImg.naturalHeight || cImg.height || 1);
+        const targetW = settings.companyLogoSize ?? 130;
+        const targetH = targetW / cAspect;
+
+        const logoX = settings.companyLogoOffsetX ?? 85;
+        const logoY = height * 0.72 + (settings.companyLogoOffsetY ?? 0);
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.12)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 2;
+        ctx.drawImage(cImg, logoX, logoY, targetW, targetH);
+        ctx.shadowColor = "transparent";
+        ctx.restore();
+      }
+    }
+  }, [settings, imageLoaded, refImageLoaded, templateBgLoaded, leftLogoLoaded, rightLogoLoaded, companyLogoLoaded, canvasW, canvasH]);
 
   useEffect(() => {
     drawPoster();

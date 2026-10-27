@@ -88,6 +88,11 @@ const DEFAULT_SETTINGS: PosterCanvasSettings = {
   leaderNameMaxWidth: 350,
   leaderRoleMaxWidth: 360,
   leaderCompanyMaxWidth: 350,
+  showCompanyLogo: true,
+  companyLogoUrl: "",
+  companyLogoSize: 130,
+  companyLogoOffsetX: 95,
+  companyLogoOffsetY: 0,
 };
 
 export default function Home() {
